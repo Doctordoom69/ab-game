@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flappy Meme Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: black;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #restartBtn {
+      position: absolute;
+      top: 60%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 14px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: red;
+      color: white;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<button id="restartBtn">Restart</button>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const restartBtn = document.getElementById("restartBtn");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+// AUDIO
+let memeSound = new Audio("meme.mp3");
+memeSound.volume = 0.9;
+
+// STATE
+let gameState = "start";
+let score = 0;
+let frameCount = 0;
+
+// Responsive scaling
+let baseWidth = 400;
+let scale = window.innerWidth / baseWidth;
+
+// PLAYER
+let player = {
+  x: 100 * scale,
+  y: canvas.height / 2,
+  size: 65 * scale,
+  velocity: 0,
+  gravity: 0.75,
+  lift: -9 * scale
+};
+
+// FACE
+let face = new Image();
+face.src = "face.png";
+
+// PIPES (scaled)
+let pipes = [];
+let pipeWidth = 70 * scale;
+let gap = 180 * scale;
+let pipeSpeed = 3.5 * scale;
+let minTop = 80 * scale;
+let maxTop = canvas.height - gap - 100 * scale;
+
+function createPipe() {
+  let topHeight = Math.random() * (maxTop - minTop) + minTop;
+
+  pipes.push({
+    x: canvas.width - 20,
+    top: topHeight,
+    bottom: canvas.height - topHeight - gap,
+    passed: false
+  });
+}
+
+function resetGame() {
+  player.y = canvas.height / 2;
+  player.velocity = 0;
+  pipes = [];
+  score = 0;
+  frameCount = 0;
+  restartBtn.style.display = "none";
+  memeSound.pause();
+  memeSound.currentTime = 0;
+  gameState = "playing";
+}
+
+function update() {
+  if (gameState !== "playing") return;
+
+  frameCount++;
+
+  if (frameCount % 85 === 0) {
+    createPipe();
+  }
+
+  player.velocity += player.gravity;
+  player.y += player.velocity;
+
+  if (player.y + player.size > canvas.height || player.y < 0) {
+    crash();
+  }
+
+  for (let i = pipes.length - 1; i >= 0; i--) {
+    pipes[i].x -= pipeSpeed;
+
+    if (
+      player.x + player.size > pipes[i].x &&
+      player.x < pipes[i].x + pipeWidth &&
+      (player.y < pipes[i].top ||
+       player.y + player.size > canvas.height - pipes[i].bottom)
+    ) {
+      crash();
+    }
+
+    if (!pipes[i].passed && pipes[i].x + pipeWidth < player.x) {
+      pipes[i].passed = true;
+      score++;
+    }
+
+    if (pipes[i].x + pipeWidth < 0) {
+      pipes.splice(i, 1);
+    }
+  }
+}
+
+function crash() {
+  if (gameState === "playing") {
+    gameState = "gameover";
+    restartBtn.style.display = "block";
+
+    memeSound.pause();
+    memeSound.currentTime = 0;
+    memeSound.play();
+  }
+}
+
+function draw() {
+  let gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, "#0f2027");
+  gradient.addColorStop(1, "#203a43");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(
+    player.x + player.size / 2,
+    player.y + player.size / 2,
+    player.size / 2,
+    0,
+    Math.PI * 2
+  );
+  ctx.clip();
+  ctx.drawImage(face, player.x, player.y, player.size, player.size);
+  ctx.restore();
+
+  ctx.fillStyle = "lime";
+  pipes.forEach(pipe => {
+    ctx.fillRect(pipe.x, 0, pipeWidth, pipe.top);
+    ctx.fillRect(pipe.x, canvas.height - pipe.bottom, pipeWidth, pipe.bottom);
+  });
+
+  ctx.fillStyle = "white";
+  ctx.font = 24 * scale + "px Arial";
+  ctx.fillText("Score: " + score, 20 * scale, 50 * scale);
+
+  if (gameState === "start") {
+    ctx.fillText("Tap to Start", canvas.width/2 - 80 * scale, canvas.height/2);
+  }
+
+  if (gameState === "gameover") {
+    ctx.fillText("Game Over", canvas.width/2 - 70 * scale, canvas.height/2 - 50);
+  }
+}
+
+function jump() {
+  if (gameState === "start") {
+    resetGame();
+    return;
+  }
+
+  if (gameState === "playing") {
+    player.velocity = player.lift;
+
+    memeSound.pause();
+    memeSound.currentTime = 0;
+    memeSound.play();
+  }
+}
+
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") jump();
+});
+
+canvas.addEventListener("click", jump);
+canvas.addEventListener("touchstart", jump);
+
+restartBtn.addEventListener("click", resetGame);
+
+function gameLoop() {
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+gameLoop();
+</script>
+
+</body>
+</html>
